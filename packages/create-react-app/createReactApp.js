@@ -80,6 +80,7 @@ const program = new commander.Command(packageJson.name)
     '--template <path-to-template>',
     'specify a template for the created project'
   )
+  .option('--no-bin-links')
   .option('--use-npm')
   .option('--use-pnp')
   // TODO: Remove this in next major release.
@@ -207,7 +208,8 @@ createApp(
   program.template,
   program.useNpm,
   program.usePnp,
-  program.typescript
+  program.typescript,
+  !program.binLinks
 );
 
 function createApp(
@@ -217,7 +219,8 @@ function createApp(
   template,
   useNpm,
   usePnp,
-  useTypeScript
+  useTypeScript,
+  noBinLinks
 ) {
   const unsupportedNodeVersion = !semver.satisfies(process.version, '>=8.10.0');
   if (unsupportedNodeVersion && useTypeScript) {
@@ -341,7 +344,8 @@ function createApp(
     originalDirectory,
     template,
     useYarn,
-    usePnp
+    usePnp,
+    noBinLinks
   );
 }
 
@@ -354,13 +358,24 @@ function shouldUseYarn() {
   }
 }
 
-function install(root, useYarn, usePnp, dependencies, verbose, isOnline) {
+function install(
+  root,
+  useYarn,
+  usePnp,
+  dependencies,
+  verbose,
+  isOnline,
+  noBinLinks
+) {
   return new Promise((resolve, reject) => {
     let command;
     let args;
     if (useYarn) {
       command = 'yarnpkg';
       args = ['add', '--exact'];
+      if (noBinLinks) {
+        args.push('--no-bin-links');
+      }
       if (!isOnline) {
         args.push('--offline');
       }
@@ -384,13 +399,11 @@ function install(root, useYarn, usePnp, dependencies, verbose, isOnline) {
       }
     } else {
       command = 'npm';
-      args = [
-        'install',
-        '--save',
-        '--save-exact',
-        '--loglevel',
-        'error',
-      ].concat(dependencies);
+      args = ['install', '--save', '--save-exact', '--loglevel', 'error'];
+      if (noBinLinks) {
+        args.push('--no-bin-links');
+      }
+      [].push.apply(args, dependencies);
 
       if (usePnp) {
         console.log(chalk.yellow("NPM doesn't support PnP."));
@@ -424,7 +437,8 @@ function run(
   originalDirectory,
   template,
   useYarn,
-  usePnp
+  usePnp,
+  noBinLinks
 ) {
   Promise.all([
     getInstallPackage(version, originalDirectory),
@@ -501,7 +515,8 @@ function run(
           usePnp,
           allDependencies,
           verbose,
-          isOnline
+          isOnline,
+          noBinLinks
         ).then(() => ({
           packageInfo,
           supportsTemplates,
